@@ -9,9 +9,13 @@
 int main(int argc, char* argv[]) {
 	Rom rom;
 	MemMap mem;
-
 	std::cout << "NES_EMU version 0.01" << std::endl;
-	rom.from_file("mario.nes");
+	if(argc < 2) {
+		std::cout << "Usage: " << argv[0] << " romfile " << std::endl;
+		return 1;
+	} else {
+		std::cout << "Loading " << argv[1] << std::endl;
+	rom.from_file(argv[1]);
 	mem.connect_rom(rom);
 	Cpu cpu(&mem);
 	cpu.reset();
@@ -34,6 +38,7 @@ int main(int argc, char* argv[]) {
 					break;
 			};
 		};
+	};
 	};
 /*
 	while(true) {
