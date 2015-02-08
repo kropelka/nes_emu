@@ -72,4 +72,13 @@ union ppustatus_t {
 	};
 };
 
+union ppu_addrbus_t {
+	u16 val;
+	struct {
+		u8 lo:8;
+		u8 hi:8;
+	};
+};
+
+
 #endif

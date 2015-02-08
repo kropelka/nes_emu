@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
 	mem.connect_rom(rom);
 	Cpu cpu(&mem);
 	cpu.reset();
-	Ppu ppu(&mem);
+	Ppu ppu;
 	bool quit = false;
 	Window window;
 	SDL_Event ev;

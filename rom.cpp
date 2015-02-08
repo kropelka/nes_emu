@@ -21,6 +21,7 @@ int Rom::from_file(const std::string& file_name) {
 	chr_rom.resize(8192 * buff[5]);
 	fprintf(stderr, "PRGROM %d kB, CHRROM %d kB\n", 16*buff[4], 8*buff[5]);
 	fprintf(stderr, "%c%c%c", buff[0], buff[1], buff[2]);
+	flags6.val = buff[6];
 
 	for(int j=0; j < prg_rom.size(); ++j) {
 		prg_rom[j] = buff[16+j];
