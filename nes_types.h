@@ -68,7 +68,7 @@ union ppustatus_t {
 		u8 lsb_last:5;  // 5 mniejszych bitow ostatnio zapisanych do PPU
 		u8 sprite_overflow:1;
 		u8 hit:1;
-		u8 vblank_started:1;
+		u8 vblank:1;
 	};
 };
 

@@ -31,7 +31,13 @@ void Window::resize(SDL_Event* ev) {
 	videoRect.w = ev->resize.w;
 	videoRect.h = ev->resize.h;
 };
+/*
+void Window::draw_sprite(Rom* rom, unsigned nr, u8 x, u8 y) {
+	for(auto i=0; i < 8; ++i) {
+		for(auto j=0; j<8; ++j) {
 
+};
+*/
 void Window::random() {
 	for(int i=0; i < 100; ++i) {
 	u8 x, y, yy, u, v;

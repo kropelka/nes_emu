@@ -10,6 +10,8 @@ struct Cpu {
 	M6502 R;
 	void reset();
 	int tick();
+	void do_ticks(unsigned);
+	void do_nmi();
 	Cpu(MemMap*);
 };
 

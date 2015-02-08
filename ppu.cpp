@@ -28,6 +28,7 @@ void Ppu::set_nt_mirroring(unsigned mode) {
 				ppu_mem[0x2400 + j] = &(nametables[j]);
 				ppu_mem[0x2800 + j] = ppu_mem[0x2C00 + j] = &(nametables[0x400 + j]);
 			};
+			horiz_copy = false;
 			break;
 
 		case 1: // mirroring poziomy
@@ -35,6 +36,7 @@ void Ppu::set_nt_mirroring(unsigned mode) {
 				ppu_mem[0x2800 + j] = &(nametables[j]);
 				ppu_mem[0x2400 + j] = ppu_mem[0x2C000 + j] = &(nametables[0x400 + j]);
 			};
+			horiz_copy = true;
 			break;
 		case 2 ... 3: // cztery nametable
 			fprintf(stderr, "Not yet implemented.");		
@@ -44,6 +46,13 @@ void Ppu::set_nt_mirroring(unsigned mode) {
 
 
 Ppu::Ppu() {
+	scroll_latch = false;
+	addr_latch = false;
+	ppustatus.val = 0;
+	ppuctrl.val = 0;
+	ppumask.val = 0;
+
+	io_memaddr.val = 0;
 	unsigned j;
 	for(j=0; j < 0x400; ++j) {
 		ppu_mem[0x2000 + j] = &(nametables[j]);
@@ -64,7 +73,80 @@ Ppu::Ppu() {
 
 };
 
+u8 Ppu::ppu_read(u16 addr) {
+	switch(addr) {
+		case 0x0000 ... 0x0FFF:
+			return rom->read_pat0(addr);
+			break;
+		
+		case 0x1000 ... 0x1FFF:
+			return rom->read_pat1(addr);
+			break;
 
+		case 0x2000 ... 0x23FF:
+			return nametables[addr - 0x2000];
+			break;
+
+		case 0x2400 ... 0x27FF:
+			return horiz_copy ? nametables[addr - 0x2400] : nametables[addr - 0x2200];
+			break;
+
+		case 0x2800 ... 0x2BFF:
+			return horiz_copy ? nametables[addr - 0x2400] : nametables[addr - 0x2800];
+			break;
+
+		case 0x2C00 ... 0x2FFF:
+			return nametables[addr - 0x2800];
+			break;
+
+		case 0x3000 ... 0x3EFF:
+			return ppu_read(addr - 0x1000);
+			break;
+
+		case 0x3F00 ... 0x3F1F:
+			return (addr & 0x0010) ? sprite_pal[addr % 0x3F00] : bg_pal[addr % 0x3F10];
+			break;
+	};
+};
+
+void Ppu::ppu_write(u16 addr, u8 val) {
+	switch(addr) {
+		case 0x2000 ... 0x23FF:
+			nametables[addr - 0x2000] = val;
+			break;
+
+		case 0x2400 ... 0x27FF:
+			horiz_copy? nametables[addr - 0x2400] = val : nametables[addr - 0x2200] = val;
+			break;
+
+		case 0x2800 ... 0x2BFF:
+			horiz_copy? nametables[addr - 0x2400] = val : nametables[addr-0x2800] = val;
+			break;
+
+		case 0x2C00 ... 0x2FFF:
+			nametables[addr - 0x2800] = val;
+			break;
+
+		case 0x3000 ... 0x3EFF:
+			ppu_write(addr - 0x1000, val);
+			break;
+
+		case 0x3F00 ... 0x3F1F:
+			addr & 0x0010 ? sprite_pal[addr % 0x3F00] = val : bg_pal[addr % 0x3F10] = val;
+			break;
+	};
+};
+
+
+
+		
+
+
+
+
+
+
+/*
 void Ppu::connect_rom(const Rom& rom) {
 	u16 j = 0;
 	// CHR ROM
@@ -73,14 +155,37 @@ void Ppu::connect_rom(const Rom& rom) {
 	};
 	set_nt_mirroring(rom.flags6.b0 + 2*rom.flags6.b1);
 };
+*/
 
-
-
-void Ppu::tick() {
-
+void Ppu::connect_rom(Rom* r) {
+	rom = r;
 };
 
+/*
+int next_scanline(int scanline) {
+	switch(scanline) {
+		case 
+};
+*/
+/*
+void Ppu::tick() {
+	switch(scanline) {
+		case 0 ... 19:   // nic sie tutaj nie dzieje
+			if(x++==341) {
+				x = 0;
+				++scanline;
+			};
+			break;
+		case 20:
+		case 21 ... 260:
+			
+
+};
+*/
+
+
 u8 Ppu::mem_read(u16 addr) {
+	u8 tmp;
 	switch(0x2000 + (addr % 8)) {
 		case 0x2000:  // ppuctrl
 			return ppuctrl.val;
@@ -91,8 +196,10 @@ u8 Ppu::mem_read(u16 addr) {
 			break;
 
 		case 0x2002: // ppustatus
-			sprite_latch = addr_latch = false;  // odczytanie PPUSTATUS powoduje rozpoczecie wczytywania adresow sprite/vram od nowa
-			return ppustatus.val;
+			scroll_latch = addr_latch = false;  // odczytanie PPUSTATUS powoduje rozpoczecie wczytywania adresow sprite/vram od nowa
+			tmp = ppustatus.val;
+			ppustatus.vblank = 0;
+			return tmp;
 			break;
 
 		case 0x2003:
@@ -104,7 +211,7 @@ u8 Ppu::mem_read(u16 addr) {
 			break;
 
 		case 0x2007:
-			return *(ppu_mem[io_memaddr.val++]);
+			return ppu_read(io_memaddr.val++);
 			break;
 	};
 };
@@ -117,7 +224,7 @@ void Ppu::mem_write(u16 addr, u8 val) {
 
 	switch(0x2000 + (addr % 8)) {
 		case 0x2002:
-			sprite_latch = addr_latch = false;
+			scroll_latch = addr_latch = false;
 			ppustatus.val = val;
 			break;
 
@@ -126,7 +233,16 @@ void Ppu::mem_write(u16 addr, u8 val) {
 			(oam_addr.val)++;
 			break;
 
+		case 0x2005: // scroll
+			if(!scroll_latch) {
+				run_scroll_x = val;
+			} else  {
+				scroll_y = val;
+			};
+			break;
+
 		case 0x2006:
+			fprintf(stderr, "sel vram\n");
 			if(!addr_latch) {
 				addr_latch = true;
 				io_memaddr.lo = val;	
@@ -137,7 +253,8 @@ void Ppu::mem_write(u16 addr, u8 val) {
 	 		break;
 
 		case 0x2007:
-			*(ppu_mem[io_memaddr.val]) = val;
+			fprintf(stderr, "Zapis do ppu vram %x", io_memaddr.val);
+			ppu_write(io_memaddr.val, val);
 			io_memaddr.val += (ppuctrl.vram_inc) ? 32 : 1;
 			break;
 
@@ -147,14 +264,111 @@ void Ppu::mem_write(u16 addr, u8 val) {
 
 };
 
-void Ppu::draw_scanline() {
+/*void Ppu::draw_frame() {
+};*/
+
+
+
+
+void Ppu::update_bg_buff(u8 tx, u8 ty, u8 nt_nr) {
+	//adres wpisu w nametable'u
+	auto nt_addr = 0x2000 + nt_nr*0x400 + 32*ty  + tx;
+	auto attr_addr = 0x23C0 + nt_nr * 0x400 + tx/4 + ty/4;
+	u8 raw_sprite[16], raw_attr;
+	u8 color;
+	for(unsigned i=0; i < 16; ++i) {
+//		raw_sprite[i] = nametables[nt_addr + i];
+//		color = nametables[attr_addr];
+		raw_sprite[i] = ppu_read(nt_addr + i);
+		color = ppu_read(attr_addr);
+		if((tx % 4) < 2) {   // lewa polowka
+			if((ty % 4) < 2) {   // lewa gorna polowka
+				raw_attr = (color << 6) >> 6;
+			} else {    // lewa dolna polowka
+				raw_attr = (color << 2) >> 6;
+			};
+		} else {   // prawa polowka
+			if((ty % 4) < 2) {  // prawa gorna polowka
+				raw_attr = (color << 4) >> 6;
+			} else {  // prawa dolna
+				raw_attr = color >> 6;
+			};
+		};
+	};
+
+	for(unsigned i=0; i < 8; ++i) {
+		for(unsigned j=0; j < 8 ; ++j) {
+			bg_buff[SIZE_X*8*(ty + i) + 8*tx + j]  = ((raw_sprite[i] << (7-j)) >> 7) + 2 * 
+				((raw_sprite[8+i] << (7-j)) >> 7 )+
+				4 * raw_attr;
+		};
+	};
 };
 
+void Ppu::showbgbuff() {
+	for(unsigned x = 0; x < 240; x++) {
+		fprintf(stderr, "\n");
+		for(unsigned y = 0; y < 256; y++) {
+			if(bg_buff[256*y + x] !=0) {
+				fprintf(stderr, "*");
+			} else
+				fprintf(stderr, " ");
+		};
+	};
+	fprintf(stderr,"\n");
+}
 
+	
+
+
+/*
+	u16 nt_addr_base = 0x2000;
+	u8 nt_entry_x, nt_entry_y;
+	u8 curr_nt;
+	u8 c;
+	unsigned x, y, scrolled_x, scrolled_y;
+	unsigned nt_entry_x, nt_entry_y; 
+	for(y=0; y < SIZE_Y; ++y) {
+		curr_nt = nt_on_scanline[y];
+		scrolled_y = scroll_y + y;
+		nt_entry_y = scrolled_y % SIZE_Y;
+		scrolled_x = scroll_x[y];
+
+		for(x=0; x < SIZE_X/4; ++x) {
+			c = *ppu_mem[nt_entry_x + (256 * nt_entry_x) + 
+
+
+};
+
+void Ppu::process() {
+	if((sprite_mem[0] + 7) == scanline) {   // hit detection
+		ppustatus.hit = 1;
+	};
+	if(ppumask.show_bg) {
+		draw_bg();
+	};
+	if(ppumask.show_sprites) {
+		// draw sprites
+	};
+};
+
+*/
+
+
+void Ppu::process() {
+};
+
+	
 
 
 void Ppu::reset() {
 	ppuctrl.val = ppumask.val = ppustatus.val = scroll.val = ppu_addr.val = 0;
 };
 
+
+void Ppu::dma_load(u8* sprites) {
+	for(int j=0; j < 0x100; ++j) {
+		sprite_mem[j] = sprites[j];
+	};
+};
 
