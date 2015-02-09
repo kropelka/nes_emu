@@ -15,15 +15,18 @@ Window::Window() {
 
 
 void Window::refresh() {
-	SDL_LockYUVOverlay(overlay);
+//	SDL_YUVOverlay(overlay);
 	SDL_DisplayYUVOverlay(overlay, &videoRect);
-	SDL_UnlockYUVOverlay(overlay);
+//	SDL_YUVOverlay(overlay);
 };
 
 void Window::put_pixel(u8 x, u8 y, u8 col_y, u8 col_u, u8 col_v) {
+	fprintf(stderr, "%u %u\n", x, y);
+	SDL_LockYUVOverlay(overlay);
 	overlay->pixels[0][256*y + x] = col_y;
 	overlay->pixels[1][256*y + x] = col_u;
 	overlay->pixels[2][256*y + x] = col_v;
+	SDL_UnlockYUVOverlay(overlay);
 };
 
 void Window::resize(SDL_Event* ev) {

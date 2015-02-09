@@ -51,7 +51,7 @@ Ppu::Ppu() {
 	ppustatus.val = 0;
 	ppuctrl.val = 0;
 	ppumask.val = 0;
-
+	horiz_copy = true;
 	io_memaddr.val = 0;
 	unsigned j;
 	for(j=0; j < 0x400; ++j) {
@@ -106,6 +106,11 @@ u8 Ppu::ppu_read(u16 addr) {
 		case 0x3F00 ... 0x3F1F:
 			return (addr & 0x0010) ? sprite_pal[addr % 0x3F00] : bg_pal[addr % 0x3F10];
 			break;
+
+		default:
+			return 0;
+			break;
+
 	};
 };
 
@@ -211,7 +216,12 @@ u8 Ppu::mem_read(u16 addr) {
 			break;
 
 		case 0x2007:
-			return ppu_read(io_memaddr.val++);
+			tmp = ppu_read(io_memaddr.val);
+			io_memaddr.val += ppuctrl.vram_inc ? 32 : 1;
+			break;
+
+		default:
+			return 0;
 			break;
 	};
 };
@@ -245,15 +255,15 @@ void Ppu::mem_write(u16 addr, u8 val) {
 			fprintf(stderr, "sel vram\n");
 			if(!addr_latch) {
 				addr_latch = true;
-				io_memaddr.lo = val;	
+				io_memaddr.hi = val;	
 			} else {
 				addr_latch = false;
-				io_memaddr.hi = val;
+				io_memaddr.lo = val;
 			};
 	 		break;
 
 		case 0x2007:
-			fprintf(stderr, "Zapis do ppu vram %x", io_memaddr.val);
+			//fprintf(stderr, "Zapis do ppu vram %x", io_memaddr.val);
 			ppu_write(io_memaddr.val, val);
 			io_memaddr.val += (ppuctrl.vram_inc) ? 32 : 1;
 			break;
@@ -272,14 +282,14 @@ void Ppu::mem_write(u16 addr, u8 val) {
 
 void Ppu::update_bg_buff(u8 tx, u8 ty, u8 nt_nr) {
 	//adres wpisu w nametable'u
-	auto nt_addr = 0x2000 + nt_nr*0x400 + 32*ty  + tx;
-	auto attr_addr = 0x23C0 + nt_nr * 0x400 + tx/4 + ty/4;
+	u16 nt_addr = 0x2000 + nt_nr*0x400 + 32*ty  + tx;
+	u16 attr_addr = 0x23C0 + nt_nr * 0x400 + tx/4 + ty/4;
 	u8 raw_sprite[16], raw_attr;
 	u8 color;
 	for(unsigned i=0; i < 16; ++i) {
 //		raw_sprite[i] = nametables[nt_addr + i];
 //		color = nametables[attr_addr];
-		raw_sprite[i] = ppu_read(nt_addr + i);
+		raw_sprite[i] = ppu_read(ppu_read(nt_addr) + i);
 		color = ppu_read(attr_addr);
 		if((tx % 4) < 2) {   // lewa polowka
 			if((ty % 4) < 2) {   // lewa gorna polowka
@@ -298,7 +308,7 @@ void Ppu::update_bg_buff(u8 tx, u8 ty, u8 nt_nr) {
 
 	for(unsigned i=0; i < 8; ++i) {
 		for(unsigned j=0; j < 8 ; ++j) {
-			bg_buff[SIZE_X*8*(ty + i) + 8*tx + j]  = ((raw_sprite[i] << (7-j)) >> 7) + 2 * 
+			bg_buff[SIZE_X*(8*ty + i) + 8*tx + j]  = ((raw_sprite[i] << (7-j)) >> 7) + 2 * 
 				((raw_sprite[8+i] << (7-j)) >> 7 )+
 				4 * raw_attr;
 		};
@@ -367,6 +377,7 @@ void Ppu::reset() {
 
 
 void Ppu::dma_load(u8* sprites) {
+	fprintf(stderr, "DMA!\n");
 	for(int j=0; j < 0x100; ++j) {
 		sprite_mem[j] = sprites[j];
 	};

@@ -1,6 +1,6 @@
 HEADERS = $(wildcard *.h)
-CXX = g++
-CC = gcc
+CXX = g++-4.9
+CC = gcc-4.9
 CXXFLAGS = -std=c++11 -g
 CCFLAGS = -std=c99
 LIBS = `sdl-config --cflags --libs` 

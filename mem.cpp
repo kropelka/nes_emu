@@ -64,7 +64,7 @@ void MemMap::cpu_write(u16 addr, u8 val) {
 			break;
 
 		case 0x4014:   // sprite DMA
-			ppu->dma_load(cpu_mem[val*0x100]);
+			ppu->dma_load(&work_ram[val*0x100]);
 			break;
 
 		default:
