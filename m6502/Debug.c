@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include "M6502.h"
 
 #ifdef INES
 #include "NES.h"

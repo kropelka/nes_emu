@@ -1,18 +1,5 @@
 #include "ppu.h"
 #include<cstdio>
-/*
-Ppu::Ppu(MemMap* mem_) {
-	mem = mem_;
-	ppuctrl = &(mem->ppuctrl);
-	ppumask = &(mem->ppumask);
-	ppustatus = &(mem->ppustatus);
-	oam_addr = &(mem->oam_addr);
-	oam_data = &(mem->oam_data);
-	scroll = &(mem->scroll);
-	ppu_addr = &(mem->ppu_addr);
-	ppu_data = &(mem->ppu_data);
-};
-*/
 
 
 /*! ustawienie trybu mirroringu tablicy sprite'ow
@@ -21,7 +8,8 @@ Ppu::Ppu(MemMap* mem_) {
  * 2 -> cztery nametable (dodatkowy VRAM w cartridge'u)
  */
 void Ppu::set_nt_mirroring(unsigned mode) {
-	unsigned j;
+	horiz_copy = (mode == 0) ? false : true;
+/*	unsigned j;
 	switch(mode) {
 		case 0:  // mirroring poziomy
 			for(j=0; j < 0x400; ++j) { 
@@ -41,18 +29,14 @@ void Ppu::set_nt_mirroring(unsigned mode) {
 		case 2 ... 3: // cztery nametable
 			fprintf(stderr, "Not yet implemented.");		
 			break;
-	};
+	}; */
 };
 
 
 Ppu::Ppu() {
 	scroll_latch = false;
 	addr_latch = false;
-	ppustatus.val = 0;
-	ppuctrl.val = 0;
-	ppumask.val = 0;
 	horiz_copy = true;
-	io_memaddr.val = 0;
 	unsigned j;
 	for(j=0; j < 0x400; ++j) {
 		ppu_mem[0x2000 + j] = &(nametables[j]);
@@ -76,6 +60,7 @@ Ppu::Ppu() {
 u8 Ppu::ppu_read(u16 addr) {
 	switch(addr) {
 		case 0x0000 ... 0x0FFF:
+//			fprintf(stderr, "Accessing pattern table!");
 			return rom->read_pat0(addr);
 			break;
 		
@@ -117,7 +102,7 @@ u8 Ppu::ppu_read(u16 addr) {
 void Ppu::ppu_write(u16 addr, u8 val) {
 	switch(addr) {
 		case 0x2000 ... 0x23FF:
-			nametables[addr - 0x2000] = val;
+			nametables[addr % 0x2000] = val;
 			break;
 
 		case 0x2400 ... 0x27FF:
@@ -137,7 +122,7 @@ void Ppu::ppu_write(u16 addr, u8 val) {
 			break;
 
 		case 0x3F00 ... 0x3F1F:
-			addr & 0x0010 ? sprite_pal[addr % 0x3F00] = val : bg_pal[addr % 0x3F10] = val;
+			addr & 0x0010 ? sprite_pal[addr % 0x3F10] = val : bg_pal[addr % 0x3F00] = val;
 			break;
 	};
 };
@@ -190,19 +175,22 @@ void Ppu::tick() {
 
 
 u8 Ppu::mem_read(u16 addr) {
+	fprintf(stderr,"ppu read addr %x\n", (addr % 0x2000) % 8);
 	u8 tmp;
-	switch(0x2000 + (addr % 8)) {
+	switch((addr% 0x2000) % 8) {
 		case 0x2000:  // ppuctrl
-			return ppuctrl.val;
+			fprintf(stderr, "inv read from ppuctrl!");
+			exit(1);
 			break;
 
 		case 0x2001: // ppumask
-			return ppumask.val;
+			fprintf(stderr, "inv read from ppumask!");
+			exit(1);
 			break;
 
 		case 0x2002: // ppustatus
 			scroll_latch = addr_latch = false;  // odczytanie PPUSTATUS powoduje rozpoczecie wczytywania adresow sprite/vram od nowa
-			tmp = ppustatus.val;
+			tmp = ppustatus.get();
 			ppustatus.vblank = 0;
 			return tmp;
 			break;
@@ -212,12 +200,12 @@ u8 Ppu::mem_read(u16 addr) {
 			break;
 
 		case 0x2004:  // sprite memory data
-			return sprite_mem[(oam_addr.val)++];
+//			return sprite_mem[(oam_addr.get())++];
 			break;
 
 		case 0x2007:
-			tmp = ppu_read(io_memaddr.val);
-			io_memaddr.val += ppuctrl.vram_inc ? 32 : 1;
+			tmp = ppu_read(io_memaddr.get());
+			io_memaddr.add(ppuctrl.vram_inc ? 32 : 1);
 			break;
 
 		default:
@@ -231,16 +219,24 @@ u8 Ppu::mem_read(u16 addr) {
 
 void Ppu::mem_write(u16 addr, u8 val) {
 	static u16 full_addr;
+	fprintf(stderr, "ppu write addr %x\n", (addr %2000) % 8);
+	switch((addr% 0x2000) % 8) {
+		case 0x2000:
+			ppuctrl.set(val);
+			break;
 
-	switch(0x2000 + (addr % 8)) {
+		case 0x2001:
+			ppumask.set(val);
+			break;
+/*
 		case 0x2002:
 			scroll_latch = addr_latch = false;
 			ppustatus.val = val;
 			break;
-
+*/
 		case 0x2004: // sprite memory data
-			sprite_mem[oam_addr.val] = val;
-			(oam_addr.val)++;
+/*			sprite_mem[oam_addr.val] = val;
+			(oam_addr.val)++;*/
 			break;
 
 		case 0x2005: // scroll
@@ -249,6 +245,7 @@ void Ppu::mem_write(u16 addr, u8 val) {
 			} else  {
 				scroll_y = val;
 			};
+			fprintf(stderr, "ppuscroll!");
 			break;
 
 		case 0x2006:
@@ -263,9 +260,9 @@ void Ppu::mem_write(u16 addr, u8 val) {
 	 		break;
 
 		case 0x2007:
-			//fprintf(stderr, "Zapis do ppu vram %x", io_memaddr.val);
-			ppu_write(io_memaddr.val, val);
-			io_memaddr.val += (ppuctrl.vram_inc) ? 32 : 1;
+			fprintf(stderr, "Zapis do ppu vram %x \n", io_memaddr.get());
+			ppu_write(io_memaddr.get(), val);
+			io_memaddr.add((ppuctrl.vram_inc) ? 32 : 1);
 			break;
 
 		default:
@@ -278,17 +275,29 @@ void Ppu::mem_write(u16 addr, u8 val) {
 };*/
 
 
-
+void Ppu::draw_patterns() {
+	u8 col1, col2;
+	for(unsigned tx=0; tx < 32; tx++) {
+		for(unsigned ty=0; ty < 30; ty++) {
+			for(unsigned spr_x=0; spr_x < 8; ++spr_x) {
+				for(unsigned spr_y=0; spr_y < 8; ++spr_y) {
+					col1 = ppu_read(16 * (32*ty + tx) + spr_y);
+					col2 = ppu_read(16 * (32*ty + tx) + spr_y + 8);
+					bg_buff[8*256*ty + 256*spr_y + 8*tx + spr_x] = ((col1 << (7-spr_x)) >> 7) + 2 * ((col2 << (7-spr_x)) >> 7);
+				};
+			};
+		};
+	};
+};
 
 void Ppu::update_bg_buff(u8 tx, u8 ty, u8 nt_nr) {
+	unsigned nt_pos = 32*ty + tx;
 	//adres wpisu w nametable'u
-	u16 nt_addr = 0x2000 + nt_nr*0x400 + 32*ty  + tx;
-	u16 attr_addr = 0x23C0 + nt_nr * 0x400 + tx/4 + ty/4;
+	u16 nt_addr = 0x2000 + nt_nr*0x400 + nt_pos;
+	u16 attr_addr = 0x23C0 + nt_nr * 0x400 + nt_pos/4;
 	u8 raw_sprite[16], raw_attr;
 	u8 color;
 	for(unsigned i=0; i < 16; ++i) {
-//		raw_sprite[i] = nametables[nt_addr + i];
-//		color = nametables[attr_addr];
 		raw_sprite[i] = ppu_read(ppu_read(nt_addr) + i);
 		color = ppu_read(attr_addr);
 		if((tx % 4) < 2) {   // lewa polowka
@@ -309,8 +318,8 @@ void Ppu::update_bg_buff(u8 tx, u8 ty, u8 nt_nr) {
 	for(unsigned i=0; i < 8; ++i) {
 		for(unsigned j=0; j < 8 ; ++j) {
 			bg_buff[SIZE_X*(8*ty + i) + 8*tx + j]  = ((raw_sprite[i] << (7-j)) >> 7) + 2 * 
-				((raw_sprite[8+i] << (7-j)) >> 7 )+
-				4 * raw_attr;
+				((raw_sprite[8+i] << (7-j)) >> 7 ) + 4 * raw_attr; //+
+//				4 * raw_attr;
 		};
 	};
 };
@@ -372,7 +381,7 @@ void Ppu::process() {
 
 
 void Ppu::reset() {
-	ppuctrl.val = ppumask.val = ppustatus.val = scroll.val = ppu_addr.val = 0;
+	//ppuctrl.val = ppumask.val = ppustatus.val = scroll.val = ppu_addr.val = 0;
 };
 
 

@@ -6,8 +6,8 @@
 
 #include<cstdint>
 
-typedef uint8_t u8;
-typedef uint16_t u16;
+typedef unsigned char u8;
+typedef unsigned short u16;
 
 /*! rejestr z mozliwoscia dostepu do poszczegolnych bitow
  * oraz czesci 3-5 bitow (uzywanych przez PPU)
@@ -33,50 +33,87 @@ union regbit_t {
 
 /*! rejestry PPU
  */
-union ppuctrl_t {
-	u8 val;
-	struct {
-		u8 nt_addr:2;  // adres nametable, 0 -> 0x2000, 1 -> 0x2400, 2 -> 0x2800, 3 -> 0x2c00)
-		u8 vram_inc:1; /* zmiana adresu VRAM przy odczycie/zapisie 
-					 * 0: dodaj jeden, czyli w prawo  1: dodaj 32, czyli w dol
-					 */
-		u8 sprite_pattern_table:1; // adres tablicy sprite'ow 8x8  0: 0x0000  1: 0x1000
-		u8 bg_pattern_table:1;	// tablica sprite'ow dla tla  0: 0x0000 1: 0x1000
-		u8 sprite_size:1;   // 0: 8x8  1: 8x16
-		u8 ppu_master_slave:1;
-		u8 nmi_on_vblank:1;
+
+struct ppuctrl_t {
+	ppuctrl_t() { set(0); };
+	u8 get() {
+		return nt_addr | (vram_inc<<2) | (sprite_pattern_table<<3) |
+			(bg_pattern_table<<4) | (sprite_size << 5) | (ppu_master_slave << 6) |
+			(nmi_on_vblank << 7);
 	};
+	void set(u8 val) {
+		nt_addr = val & 3;
+		vram_inc = val & 4;
+		sprite_pattern_table = val & 8;
+		bg_pattern_table = val & 16;
+		sprite_size = val & 32;
+		ppu_master_slave = val & 64;
+		nmi_on_vblank = val & 128;
+	};
+	u8 nt_addr;
+	bool vram_inc;
+	bool sprite_pattern_table;
+	bool bg_pattern_table;
+	bool sprite_size;
+	bool ppu_master_slave;
+	bool nmi_on_vblank;
 };
 
-union ppumask_t {
-	u8 val;
-	struct {
-		u8 grayscale:1;
-		u8 bg_on_left:1;
-		u8 sprites_on_left:1;
-		u8 show_bg:1;
-		u8 show_sprites:1;
-		u8 emph_red:1;
-		u8 emph_green:1;
-		u8 emph_blue:1;
+
+
+struct ppumask_t {
+	bool grayscale;
+	bool bg_on_left;
+	bool sprites_on_left;
+	bool show_bg;
+	bool show_sprites;
+	bool emph_red;
+	bool emph_green;
+	bool emph_blue;
+	void set(u8 val) {
+		grayscale = val & 1;
+		bg_on_left = val & 2;
+		sprites_on_left = val & 4;
+		show_bg = val & 8;
+		show_sprites = val & 16;
+		emph_red = val & 32;
+		emph_green = val & 64;
+		emph_blue = val & 128;
+	};
+	u8 get() {
+		return grayscale | (bg_on_left<<1) | (sprites_on_left<<2) | (show_bg<<3) |
+			(show_sprites<<4) |(emph_red<<5) | (emph_green<<6) | (emph_blue<<7);
 	};
 };
 
 union ppustatus_t {
-	u8 val;
-	struct {
-		u8 lsb_last:5;  // 5 mniejszych bitow ostatnio zapisanych do PPU
-		u8 sprite_overflow:1;
-		u8 hit:1;
-		u8 vblank:1;
+	u8 lsb_last;
+	bool sprite_overflow;
+	bool hit;
+	bool vblank;
+	void set(u8 val) {
+		lsb_last = 0b00011111 & val;
+		sprite_overflow = val & 32;
+		hit = val & 64;
+		vblank = val & 128;
+	};
+	u8 get() {
+		return lsb_last | (sprite_overflow << 5) | (hit<<6) | (vblank<<7);
 	};
 };
 
-union ppu_addrbus_t {
-	u16 val;
-	struct {
-		u8 lo:8;
-		u8 hi:8;
+struct ppu_addrbus_t {
+	u8 lo, hi;
+	u16 tmp;
+	ppu_addrbus_t() { lo = hi = 0;};
+	u16 get() {	return 256*hi + lo;	};
+	void set_lo(u8 val) { lo = val; };
+	void set_hi(u8 val) { hi = val; };
+	void add(u8 val) {
+		tmp = get();
+		tmp += val;
+		lo = val & 0xFF;
+		hi = (val >> 8) & 0xFF;
 	};
 };
 

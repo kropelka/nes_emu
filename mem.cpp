@@ -64,6 +64,7 @@ void MemMap::cpu_write(u16 addr, u8 val) {
 			break;
 
 		case 0x4014:   // sprite DMA
+			fprintf(stderr, "dma!");
 			ppu->dma_load(&work_ram[val*0x100]);
 			break;
 
@@ -85,6 +86,7 @@ u8 MemMap::cpu_read(u16 addr) {
 			break;
 
 		case 0x8000 ... 0xFFFF:
+		//	fprintf(stderr, "rom read z %x\n", addr);
 			return rom->read(addr);
 			break;
 	

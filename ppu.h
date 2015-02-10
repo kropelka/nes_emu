@@ -63,6 +63,7 @@ struct Ppu {
 	void showbgbuff();
 	u8 ppu_read(u16);
 	void ppu_write(u16, u8);
+	void draw_patterns();
 };
 
 

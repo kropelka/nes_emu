@@ -4,14 +4,19 @@
 #include<cstdio>
 
 static MemMap* mem;
+char* opcode_table[0x100] = {
+	#include "names.txt"
+};
+
 
 extern "C" {
 	void Wr6502(u16 addr, u8 val) { 
+//		fprintf(stderr, "Writing from memory at address %4x value %2x", addr, val);
 		mem->cpu_write(addr, val);
 	};
 	
 	u8 Rd6502(u16 addr) {
-	//	fprintf(stderr, "Reading from memory at address %4x\n", addr);
+//		fprintf(stderr, "Reading from memory at address %4x\n", addr);
 		return mem->cpu_read(addr);
 	};
 
@@ -25,13 +30,14 @@ extern "C" {
 
 	u8 Patch6502(byte op, M6502 *r) {
 //		fprintf(stderr, "Inv opcode %2x on PC=%4x\n", op, r->PC.W);
+//		exit(1);
 		return 0;
 	};
 	u8 Debug6502(M6502 *R) {
-		fprintf(stderr, "PC=%4x A=%2x P=%2x X=%2x Y=%2x S=%2x\n", R->PC.W, R->A, R->P, R->X, R->Y, R->S);
-		return 1;
+		fprintf(stderr, "%s ", opcode_table[mem->cpu_read(R->PC.W)]);
+		fprintf(stderr, "PC=%4x opcode = %2x A=%2x P=%2x X=%2x Y=%2x S=%2x\n", R->PC.W, mem->cpu_read(R->PC.W), R->A, R->P, R->X, R->Y, R->S);
+		return 0;
 	};
-		
 };
 
 /*
@@ -44,8 +50,13 @@ struct Cpu {
 */
 
 
+
+
+
+
 Cpu::Cpu(MemMap* mem_) {
 	mem = mem_;
+	fprintf(stderr, "CPU init.\n");
 };
 
 void Cpu::reset() {

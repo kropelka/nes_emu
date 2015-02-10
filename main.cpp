@@ -108,10 +108,19 @@ int main(int argc, char* argv[]) {
 		ppu.set_nt_mirroring(0);
 		window.refresh();
 		u8 color[3];
+		u8 tmp1, tmp2, tmp3;
+/*		if(step=true) {
+			cpu.R.Trap = 1;
+			while(true) {
+				cpu.R.Trace = 1;
+				cpu.do_ticks(100);
+			};
+		};*/
 		while(!quit) {
 
 			ppu.ppustatus.vblank = 0;
 			while(SDL_PollEvent(&ev)) {
+				//;printf("petla sdl\n");
 				switch(ev.type) {
 					case SDL_VIDEORESIZE:
 						window.resize(&ev);
@@ -120,34 +129,53 @@ int main(int argc, char* argv[]) {
 						quit = true;
 						break;
 					case SDL_KEYUP:
-						if(!step) {
-//						window.random();
-						for(unsigned i = 0; i < 30; i++) {
-							for(unsigned j = 0; j < 32; j++) {
-								ppu.update_bg_buff(i, j, 0);
-							};
+						if(ev.key.keysym.sym == SDLK_LEFT) {
+							quit = true;
 						};
+						if(!step) {
+						window.random();
+//						for(unsigned i = 0; i < 32; i++) {
+//							for(unsigned j = 0; j < 30; j++) {
+//								ppu.update_bg_buff(i, j, 0);
+//							};
+//						};
 //						ppu.showbgbuff();
+						ppu.draw_patterns();
 						for(unsigned i=0; i < 240; ++i) {
 							for(unsigned j=0; j < 256; ++j) {
-								color[0] = nes_pal[ppu.bg_buff[256*i+j]][0];
-								color[1] = nes_pal[ppu.bg_buff[256*i+j]][1];
-								color[2] = nes_pal[ppu.bg_buff[256*i+j]][2];
+								tmp1 = ppu.bg_buff[256*i + j];
+								color[0] = nes_pal[tmp1][0];
+								color[1] = nes_pal[tmp1][1];
+								color[2] = nes_pal[tmp1][2];
 								window.put_pixel(j, i, color[0], color[1], color[2]);
 							};
 						};
 						window.refresh();
 						} else
-							fprintf(stderr, "PC = %x\n", cpu.R.PC.W);
-							cpu.do_ticks(1);
+//							fprintf(stderr, "PC = %x A = %x X = %x Y = %x\n", cpu.R.PC.W, cpu.R.A, cpu.R.X, cpu.R.Y);
+							cpu.R.Trace = 1;
+							cpu.do_ticks(10);
 						break;
 				};
 			};
 			if(!step) {
+				ppu.ppustatus.vblank = 0;
 				for(ppu.scanline = 0; ppu.scanline < 262; ++ppu.scanline) {
 					//fprintf(stderr, "CPU PC = %x\n", cpu.R.PC.W); 
 					cpu.do_ticks(144);
 					ppu.process();
+					if(ppu.scanline == 238) {
+						for(unsigned i=0; i < 240; ++i) {
+							for(unsigned j=0; j < 256; ++j) {
+								tmp1 = ppu.bg_buff[256*i + j];
+								color[0] = nes_pal[tmp1][0];
+								color[1] = nes_pal[tmp1][1];
+								color[2] = nes_pal[tmp1][2];
+//								window.put_pixel(j, i, color[0], color[1], color[2]);
+							};
+						};
+						window.refresh();
+					};	
 					if(ppu.scanline == 239) {
 						ppu.ppustatus.vblank = 1;
 //						cpu.do_nmi();

@@ -4,7 +4,7 @@
 #include<cstdio>
 int Rom::from_file(const std::string& file_name) {
 	regbit_t flags;
-	std::vector<int8_t> buff;
+	std::vector<unsigned char> buff;
 	std::ifstream file(file_name, std::ios_base::in | std::ios_base::binary);
 
 	// odczytaj rozmiar pliku
@@ -15,25 +15,27 @@ int Rom::from_file(const std::string& file_name) {
 
 	// wczytaj ROM
 	for(int j=0; j < len; ++j) {
-		file >> buff[j];
+		buff[j] = file.get();
 	};
-	prg_rom.resize(16384 * buff[4]);
-	chr_rom.resize(8192 * buff[5]);
+//	prg_rom.resize(16384 * buff[4]);
+//	chr_rom.resize(8192 * buff[5]);
 	if(buff[4] < 2) {
 		short_rom = true;
+		std::cout << "short rom = true!";
 	} else
 		short_rom = false;
 	fprintf(stderr, "PRGROM %d kB, CHRROM %d kB\n", 16*buff[4], 8*buff[5]);
 	fprintf(stderr, "%c%c%c", buff[0], buff[1], buff[2]);
 	flags6.val = buff[6];
 
-	for(int j=0; j < prg_rom.size(); ++j) {
+	for(int j=0; j < 16384*buff[4]; ++j) {
 		prg_rom[j] = buff[16+j];
+//		printf("%2x ", buff[16+j]);
 	};
 
-	for(int j=0; j < chr_rom.size(); ++j) {
-		chr_rom[j] = buff[16 + prg_rom.size() + j];
-	};		
+	for(int j=0; j < 8192*buff[5]; ++j) {
+		chr_rom[j] = buff[16 + 16384*buff[4] + j];
+	};	
 	std::cout << "Rom loaded." << std::endl;
 	
 	return 0;
@@ -52,11 +54,12 @@ u8 Rom::read(u16 addr) {
 //	fprintf(stderr, "czytam z romu, addr %x .\n", addr);
 	switch(addr) {
 		case 0x8000 ... 0xBFFF:
-			return prg_rom[addr - 0x8000];
+			return prg_rom[addr%0x8000];
 			break;
 
 		case 0xC000 ... 0xFFFF:
-			return short_rom ? prg_rom[addr - 0xC000] : prg_rom[addr-0x8000];
+//			printf("wysoki bank.");
+			return short_rom ? prg_rom[addr%0xC000] : prg_rom[addr - 0x8000];
 			break;
 		
 		default:
