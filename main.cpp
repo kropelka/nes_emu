@@ -6,6 +6,13 @@
 #include "ppu.h"
 #include "window.h"
 #include <SDL/SDL.h>
+#define DEBUG_CONSOLE
+
+#ifdef DEBUG_CONSOLE
+#include "debug.h"
+#endif
+
+
 
 u8 nes_pal[65][3] = {
  { 0x7c, 0x82, 0x7b},
@@ -76,124 +83,139 @@ u8 nes_pal[65][3] = {
 
 };
 
+bool quit = false;
+
+
+struct Keys {
+	int exit;
+	int debug_refresh;
+	int toggle_stepping;
+	Keys() {
+		exit = SDLK_ESCAPE;
+		debug_refresh = SDLK_PAGEDOWN;
+		toggle_stepping = SDLK_F10;
+	};
+} keybindings;
+
+
+
+/*
+void process_event(SDL_Event* ev, Window* w) {
+	static int key;
+	switch(ev->type) {
+		case SDL_VIDEORESIZE:
+			w->resize(ev);
+			break;
+
+		case SDL_QUIT:
+			quit = true;
+			break;
+
+		case SDL_KEYDOWN:
+			key = ev->key.keysym.sym;
+			if(key==keybindings.exit) {
+				quit = true;
+			} else if(key==keybindings.debug_refresh) {
+			};
+			switch(ev->key.keysym.sym) {
+				case keybindings.exit:
+					quit = true;
+					break;
+
+				default:
+					break;
+			};
+			break;
+	};
+};
+*/
+
+
 
 
 int main(int argc, char* argv[]) {
 	Rom rom;
 	MemMap mem;
+	Ppu ppu;
+
+
 	bool step=false;
 	std::cout << "NES_EMU version 0.01" << std::endl;
 	if(argc < 2) {
 		std::cout << "Usage: " << argv[0] << " romfile " << std::endl;
 		return 1;
-	} else {
-		std::cout << "Loading " << argv[1] << std::endl;
-		rom.from_file(argv[1]);
-		if(argc > 2) {
-			if( *argv[2] == 's') {
-				step = true;
-			} else
-				return 0;
-		};
+	};
 
-		Ppu ppu;
-		ppu.connect_rom(&rom);
-		mem.connect_rom(&rom);
-		mem.connect_ppu(&ppu);
-		Cpu cpu(&mem);
-		cpu.reset();
-		bool quit = false;
-		Window window;
-		SDL_Event ev;
-		ppu.set_nt_mirroring(0);
-		window.refresh();
-		u8 color[3];
-		u8 tmp1, tmp2, tmp3;
-/*		if(step=true) {
-			cpu.R.Trap = 1;
-			while(true) {
-				cpu.R.Trace = 1;
-				cpu.do_ticks(100);
-			};
-		};*/
-		while(!quit) {
+	std::cout << "Loading " << argv[1] << std::endl;
+	rom.from_file(argv[1]);
 
-			ppu.ppustatus.vblank = 0;
-			while(SDL_PollEvent(&ev)) {
-				//;printf("petla sdl\n");
-				switch(ev.type) {
-					case SDL_VIDEORESIZE:
-						window.resize(&ev);
-						break;
-					case SDL_QUIT:
+	//inicjalizacja i polaczenie szyn adresowych CPU, PPU i cartridge'a
+	ppu.connect_rom(&rom);
+	mem.connect_rom(&rom);
+	mem.connect_ppu(&ppu);
+
+	Cpu cpu(&mem);
+	cpu.reset();
+	
+	
+	Window window;
+	SDL_Event ev;
+	ppu.set_nt_mirroring(0);
+
+	window.refresh();
+
+	u8 color[3];
+	u8 tmp1, tmp2, tmp3;
+
+#ifdef DEBUG_CONSOLE
+	DebugWindow debug(&cpu, &mem, &ppu);
+#endif
+
+	// Główna pętla programu
+	while(!quit) {
+
+		while(SDL_PollEvent(&ev)) {
+			switch(ev.type) {
+				case SDL_VIDEORESIZE:
+					window.resize(&ev);
+					break;
+		
+				case SDL_QUIT:
+					quit = true;
+					break;
+					
+				case SDL_KEYUP:
+					if(ev.key.keysym.sym == SDLK_ESCAPE) {
 						quit = true;
-						break;
-					case SDL_KEYUP:
-						if(ev.key.keysym.sym == SDLK_LEFT) {
-							quit = true;
-						};
-						if(!step) {
-						window.random();
-//						for(unsigned i = 0; i < 32; i++) {
-//							for(unsigned j = 0; j < 30; j++) {
-//								ppu.update_bg_buff(i, j, 0);
-//							};
-//						};
-//						ppu.showbgbuff();
-						ppu.draw_patterns();
-						for(unsigned i=0; i < 240; ++i) {
-							for(unsigned j=0; j < 256; ++j) {
-								tmp1 = ppu.bg_buff[256*i + j];
-								color[0] = nes_pal[tmp1][0];
-								color[1] = nes_pal[tmp1][1];
-								color[2] = nes_pal[tmp1][2];
-								window.put_pixel(j, i, color[0], color[1], color[2]);
-							};
-						};
-						window.refresh();
-						} else
-//							fprintf(stderr, "PC = %x A = %x X = %x Y = %x\n", cpu.R.PC.W, cpu.R.A, cpu.R.X, cpu.R.Y);
-							cpu.R.Trace = 1;
-							cpu.do_ticks(10);
-						break;
+					};
+#ifdef DEBUG_CONSOLE
+					if(ev.key.keysym.sym == SDLK_PAGEDOWN) {
+						debug.update();
+					};
+#endif
+					break;
+
+				default:
+					break;
+				};
+		};
+
+		ppu.ppustatus.vblank = 0;
+		ppu.run_nt = 0;
+		for(ppu.scanline = 0; ppu.scanline < 262; ++ppu.scanline) {
+			cpu.do_ticks(144);
+			ppu.nt_sel[ppu.scanline] = ppu.run_nt;
+			ppu.scroll_x[ppu.scanline] = ppu.run_scroll_x;
+
+			// wchodzimy w vblank...
+			if(ppu.scanline == 239) {
+				ppu.ppustatus.vblank = 1;
+				if(ppu.ppuctrl.nmi_on_vblank==1) {
+					cpu.do_nmi();
+					fprintf(stderr, "nmi na vblank on!\n");
 				};
 			};
-			if(!step) {
-				ppu.ppustatus.vblank = 0;
-				for(ppu.scanline = 0; ppu.scanline < 262; ++ppu.scanline) {
-					//fprintf(stderr, "CPU PC = %x\n", cpu.R.PC.W); 
-					cpu.do_ticks(144);
-					ppu.process();
-					if(ppu.scanline == 238) {
-						for(unsigned i=0; i < 240; ++i) {
-							for(unsigned j=0; j < 256; ++j) {
-								tmp1 = ppu.bg_buff[256*i + j];
-								color[0] = nes_pal[tmp1][0];
-								color[1] = nes_pal[tmp1][1];
-								color[2] = nes_pal[tmp1][2];
-//								window.put_pixel(j, i, color[0], color[1], color[2]);
-							};
-						};
-						window.refresh();
-					};	
-					if(ppu.scanline == 239) {
-						ppu.ppustatus.vblank = 1;
-//						cpu.do_nmi();
-						if(ppu.ppuctrl.nmi_on_vblank==1) {
-							cpu.do_nmi();
-							fprintf(stderr, "nmi na vblank on!\n");
-						};
-					};
-				};
-			}; //else {
-				//cpu.do_ticks(1);
-			//};
 		};
-	};
-/*
-	while(true) {
-		cpu.tick();
-		std::cin.get();
-	};
-*/
+		ppu.draw_frame();
+	}; 
 };

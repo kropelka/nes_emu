@@ -30,6 +30,15 @@ union regbit_t {
 	};
 };
 
+struct reg16_t {
+	u8 lo, hi;
+	reg16_t() : lo(0), hi(0) {};
+	reg16_t(u16 val) : lo(val & 0xFF), hi((val >> 8) & 0xFF) {};
+	u16 get() {return 256*hi + lo;};
+	void set_lo(u8 val) { lo = val; };
+	void set_hi(u8 val) { hi = val; };
+};
+
 
 /*! rejestry PPU
  */

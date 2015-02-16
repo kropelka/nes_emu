@@ -13,6 +13,7 @@ struct Window {
 	void random();
 	void resize(SDL_Event*);
 	~Window();
+//	debugMessage(char* msg);
 
 };
 

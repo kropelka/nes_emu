@@ -12,6 +12,7 @@ struct Cpu {
 	int tick();
 	void do_ticks(unsigned);
 	void do_nmi();
+	void debug_msg();
 	Cpu(MemMap*);
 };
 

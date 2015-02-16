@@ -61,7 +61,7 @@ Cpu::Cpu(MemMap* mem_) {
 
 void Cpu::reset() {
 	Reset6502(&R);
-	R.PC.W = 0xC000;
+//	R.PC.W = 0xC000;
 };
 
 void Cpu::do_nmi() {
@@ -69,6 +69,9 @@ void Cpu::do_nmi() {
 };
 	
 
+void Cpu::debug_msg() {
+	Debug6502(&R);
+};
 
 
 int Cpu::tick() {

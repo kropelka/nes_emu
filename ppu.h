@@ -21,6 +21,7 @@ struct Ppu {
 	ppumask_t ppumask;
 	ppustatus_t ppustatus;
 	regbit_t oam_addr, oam_data, scroll, ppu_addr, ppu_data;
+	reg16_t scroll_addr;
 	Ppu();
 
 	Rom* rom;
@@ -29,6 +30,7 @@ struct Ppu {
 	u8 bg_buff[256*240];
 	u8 sprite_buff[256*240];
 	u8 run_scroll_x;
+	u8 run_nt;
 	u16 scroll_x[262];
 	u16 scroll_y;
 	bool horiz_copy;
@@ -64,6 +66,9 @@ struct Ppu {
 	u8 ppu_read(u16);
 	void ppu_write(u16, u8);
 	void draw_patterns();
+	void draw_frame();
+	void draw_sprites();
+	void draw_bg();
 };
 
 

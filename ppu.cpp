@@ -175,21 +175,19 @@ void Ppu::tick() {
 
 
 u8 Ppu::mem_read(u16 addr) {
-	fprintf(stderr,"ppu read addr %x\n", (addr % 0x2000) % 8);
+//	fprintf(stderr,"ppu read addr %x\n", (addr % 0x2000) % 8);
 	u8 tmp;
 	switch((addr% 0x2000) % 8) {
 		case 0x2000:  // ppuctrl
-			fprintf(stderr, "inv read from ppuctrl!");
-			exit(1);
+			return ppuctrl.get();
 			break;
 
 		case 0x2001: // ppumask
-			fprintf(stderr, "inv read from ppumask!");
-			exit(1);
+			return ppumask.get();
 			break;
 
 		case 0x2002: // ppustatus
-			scroll_latch = addr_latch = false;  // odczytanie PPUSTATUS powoduje rozpoczecie wczytywania adresow sprite/vram od nowa
+			addr_latch = scroll_latch = false;  // odczytanie PPUSTATUS powoduje rozpoczecie wczytywania adresow sprite/vram od nowa
 			tmp = ppustatus.get();
 			ppustatus.vblank = 0;
 			return tmp;
@@ -206,6 +204,7 @@ u8 Ppu::mem_read(u16 addr) {
 		case 0x2007:
 			tmp = ppu_read(io_memaddr.get());
 			io_memaddr.add(ppuctrl.vram_inc ? 32 : 1);
+			return tmp;
 			break;
 
 		default:
@@ -223,6 +222,7 @@ void Ppu::mem_write(u16 addr, u8 val) {
 	switch((addr% 0x2000) % 8) {
 		case 0x2000:
 			ppuctrl.set(val);
+			ppu.run_nt = val & 1;
 			break;
 
 		case 0x2001:
@@ -234,9 +234,16 @@ void Ppu::mem_write(u16 addr, u8 val) {
 			ppustatus.val = val;
 			break;
 */
+
+		case 0x2003:
+			io_memaddr.set_lo(val);
+			addr_latch = false;
+			break;
+
 		case 0x2004: // sprite memory data
 /*			sprite_mem[oam_addr.val] = val;
 			(oam_addr.val)++;*/
+			sprite_mem[io_memaddr.lo++] = val;
 			break;
 
 		case 0x2005: // scroll
@@ -245,7 +252,7 @@ void Ppu::mem_write(u16 addr, u8 val) {
 			} else  {
 				scroll_y = val;
 			};
-			fprintf(stderr, "ppuscroll!");
+			scroll_latch = ~scroll_latch;
 			break;
 
 		case 0x2006:
@@ -264,7 +271,12 @@ void Ppu::mem_write(u16 addr, u8 val) {
 			ppu_write(io_memaddr.get(), val);
 			io_memaddr.add((ppuctrl.vram_inc) ? 32 : 1);
 			break;
-
+/*
+		case 0x4014:
+			for(unsigned j=0; j < 0x100; ++j) {
+				sprite_ram[j] = 
+			};
+*/
 		default:
 			break;
 	};
@@ -286,10 +298,8 @@ void Ppu::draw_patterns() {
 					bg_buff[8*256*ty + 256*spr_y + 8*tx + spr_x] = ((col1 << (7-spr_x)) >> 7) + 2 * ((col2 << (7-spr_x)) >> 7);
 				};
 			};
-		};
-	};
+		};	};
 };
-
 void Ppu::update_bg_buff(u8 tx, u8 ty, u8 nt_nr) {
 	unsigned nt_pos = 32*ty + tx;
 	//adres wpisu w nametable'u
@@ -390,5 +400,70 @@ void Ppu::dma_load(u8* sprites) {
 	for(int j=0; j < 0x100; ++j) {
 		sprite_mem[j] = sprites[j];
 	};
+};
+
+void Ppu::draw_bg() {
+	unsigned ntable;
+	unsigned name_x, name_y;
+	unsigned nnot;
+	int rx, ry;
+
+	unsigned tmp;
+
+	for(unsigned y = 0; y < 240; ++y) {
+		ntable = nt_sel[y];
+		ry = scroll_y + y;
+		name_y = ry % 240;
+
+		rx = ppu.scroll_x[y];
+
+		for(unsigned x = 0; x < 256/4; ++x) {
+			nnot = (rx/256) & 1;
+			name_x = rx % 256;
+			c = nametables[name_x + (256*name_y) + ((256 * 240) * (ntable^nnot))];
+			tmp = (c&3) == 0 ? NES_PAL_BG : bg_pal[c];
+			++rx;
+
+			nnot = (rx/256) & 1;
+			name_x = rx % 256;
+			c = nametables[name_x + 256*name_y + ((256 * 240) * (ntable^nnot))];
+			tmp |= ( (c&3) == 0 ? NES_PAL_BG : bg_pal[c]) << 8;
+			++rx;
+
+			nnot = (rx/256) & 1;
+			name_x = rx % 256;
+			c = nametables[name_x + 256*name_y + ((256 * 240) * (ntable^nnot))];
+			tmp |= ( (c&3) == 0 ? NES_PAL_BG : bg_pal[c]) << 16;
+			++rx;
+
+			nnot = (rx/256) & 1;
+			name_x = rx % 256;
+			c = nametables[name_x + 256*name_y + ((256 * 240) * (ntable^nnot))];
+			tmp |= ( (c&3) == 0 ? NES_PAL_BG : bg_pal[c]) << 24;
+			++rx;
+
+			
+
+
+					
+
+
+
+
+
+	};
+
+};
+
+
+void Ppu::draw_frame() {
+	if(ppumask.show_bg {
+		draw_bg();
+	};
+
+	if(ppumask.show_sprites) {
+		draw_sprites();
+	};
+
 };
 
